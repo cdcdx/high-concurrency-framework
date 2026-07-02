@@ -12,6 +12,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const profileESMaxConcurrency = 50 // ES 索引并发 goroutine 上限
+
 // UserProfileService 用户资料服务
 // 存储: MongoDB (主存储, schema灵活) + 多级缓存 (读加速)
 type UserProfileService struct {
@@ -34,7 +36,7 @@ func NewUserProfileService(
 		mongoRepo:    mongoRepo,
 		searchClient: searchClient,
 		logger:       logger,
-		esSemaphore:  make(chan struct{}, esMaxConcurrency),
+		esSemaphore:  make(chan struct{}, profileESMaxConcurrency),
 	}
 }
 

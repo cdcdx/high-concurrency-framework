@@ -57,3 +57,43 @@ type BusinessEvent struct {
 	Payload   interface{} `json:"payload"`
 }
 
+// ==========================================
+// 用户认证模型
+// ==========================================
+
+// User 用户认证模型 (MySQL 持久化)
+type User struct {
+	ID           uint64    `json:"id"`
+	Username     string    `json:"username"`
+	PasswordHash string    `json:"-"` // 永远不在 JSON 中暴露
+	Email        string    `json:"email,omitempty"`
+	Phone        string    `json:"phone,omitempty"`
+	Status       int       `json:"status"` // 1=正常 0=禁用
+	LastLoginAt  *string   `json:"last_login_at,omitempty"`
+	CreatedAt    string    `json:"created_at"`
+	UpdatedAt    string    `json:"updated_at"`
+}
+
+// RegisterRequest 注册请求
+type RegisterRequest struct {
+	Username string `json:"username" validate:"required,min=3,max=64"`
+	Password string `json:"password" validate:"required,min=6,max=128"`
+	Email    string `json:"email"    validate:"omitempty,email,max=128"`
+	Phone    string `json:"phone"    validate:"omitempty,max=20"`
+}
+
+// LoginRequest 登录请求
+type LoginRequest struct {
+	Username string `json:"username" validate:"required"`
+	Password string `json:"password" validate:"required"`
+}
+
+// TokenResponse JWT 令牌响应
+type TokenResponse struct {
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"` // "Bearer"
+	ExpiresIn   int64  `json:"expires_in"` // 秒
+	UserID      uint64 `json:"user_id"`
+	Username    string `json:"username"`
+}
+

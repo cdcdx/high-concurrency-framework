@@ -157,13 +157,27 @@ func (h *HotKeyDetector) cleanupLoop() {
 }
 
 func (h *HotKeyDetector) cleanup() {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	// 清除低计数Key
+	// 先收集需要清理的 Key（快路径，读锁），再批量删除（写锁）
+	toDelete := make([]string, 0)
+	h.mu.RLock()
 	for key, sr := range h.keyCounters {
 		if sr.sum() <= h.threshold/10 {
+			toDelete = append(toDelete, key)
+		}
+	}
+	h.mu.RUnlock()
+
+	if len(toDelete) == 0 {
+		return
+	}
+
+	h.mu.Lock()
+	for _, key := range toDelete {
+		// double-check：写锁下再次确认计数仍然为低
+		if sr, ok := h.keyCounters[key]; ok && sr.sum() <= h.threshold/10 {
 			delete(h.keyCounters, key)
 			delete(h.hotKeys, key)
 		}
 	}
+	h.mu.Unlock()
 }

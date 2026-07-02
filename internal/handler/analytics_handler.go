@@ -32,6 +32,7 @@ func NewAnalyticsHandler(analyticsSvc *service.AnalyticsService, logger *zap.Sug
 // @Success      200   {object}  model.ApiResponse
 // @Failure      400   {object}  model.ApiResponse
 // @Failure      500   {object}  model.ApiResponse
+// @Security     Bearer
 // @Router       /api/v1/analytics/daily [get]
 func (h *AnalyticsHandler) GetDailyStats(c *gin.Context) {
 	traceID := middleware.GetTraceID(c)
@@ -82,6 +83,7 @@ func (h *AnalyticsHandler) GetDailyStats(c *gin.Context) {
 // @Param        type  query     string  false  "事件类型(如order_create)"
 // @Success      200   {object}  model.ApiResponse
 // @Failure      500   {object}  model.ApiResponse
+// @Security     Bearer
 // @Router       /api/v1/analytics/behaviors [get]
 func (h *AnalyticsHandler) GetBehaviorSummary(c *gin.Context) {
 	traceID := middleware.GetTraceID(c)

@@ -21,6 +21,7 @@ type Config struct {
 	Logging        LoggingConfig        `yaml:"logging"`
 	Swagger        SwaggerConfig        `yaml:"swagger"`
 	CORS           CORSConfig           `yaml:"cors"`
+	JWT            JWTConfig            `yaml:"jwt"`
 }
 
 // === 数据库连接配置（消除与 database 包的循环依赖） ===
@@ -72,7 +73,7 @@ type CacheConfig struct {
 type L1CacheConfig struct {
 	MaxEntries     int `yaml:"max_entries"`
 	TTLSeconds     int `yaml:"ttl_seconds"`
-	RefreshSeconds int `yaml:"refresh_seconds"`
+	RefreshSeconds int `yaml:"refresh_seconds"` // 提前异步刷新 (TODO: 未实现, 预留字段)
 }
 
 type L2CacheConfig struct {
@@ -82,6 +83,7 @@ type L2CacheConfig struct {
 	MinIdle       int      `yaml:"min_idle"`
 	DialTimeoutMs int      `yaml:"dial_timeout_ms"`
 	ReadTimeoutMs int      `yaml:"read_timeout_ms"`
+	TTLSeconds    int      `yaml:"ttl_seconds"` // L2 基础 TTL (秒), 默认 1800 (30分钟)
 }
 
 type DatabaseConfig struct {
@@ -169,6 +171,12 @@ type SwaggerConfig struct {
 	Enabled bool `yaml:"enabled"` // 是否启用在线文档, 默认为 false (生产环境关闭)
 }
 
+// JWTConfig JWT 认证配置
+type JWTConfig struct {
+	Secret         string `yaml:"secret"`           // JWT 签名密钥 (生产环境使用强随机字符串)
+	ExpireSeconds  int    `yaml:"expire_seconds"`   // Token 过期时间 (秒)
+}
+
 // CORSConfig 跨域配置
 type CORSConfig struct {
 	Enabled          bool     `yaml:"enabled"`           // 是否启用 CORS
@@ -204,6 +212,7 @@ var defaultConfig = Config{
 	HotKey:         HotKeyConfig{WindowSeconds: 10, Slots: 10, Threshold: 100},
 	Logging:        LoggingConfig{Level: "debug", Format: "structured"},
 	Swagger:        SwaggerConfig{Enabled: false}, // 默认关闭, 开发环境通过 config.yaml 开启
+	JWT:            JWTConfig{Secret: "change-me-in-production", ExpireSeconds: 7200}, // 默认2小时
 	CORS: CORSConfig{
 		Enabled:          false,                                       // 默认关闭, 开发环境通过 config.yaml 开启
 		AllowedOrigins:   []string{"*"},
@@ -246,7 +255,10 @@ func (c *CacheConfig) L1TTL() time.Duration {
 
 // L2TTL 返回L2缓存TTL (带随机偏移防雪崩)
 func (c *CacheConfig) L2TTL() time.Duration {
-	base := 30 * time.Minute
+	base := time.Duration(c.L2.TTLSeconds) * time.Second
+	if base <= 0 {
+		base = 30 * time.Minute // 默认 30 分钟
+	}
 	return jitterDuration(base, c.JitterPercent)
 }
 

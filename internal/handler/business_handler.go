@@ -52,6 +52,7 @@ func NewBusinessHandler(
 // @Success      200   {object}  model.ApiResponse{data=object{order_no=string,channel=string}}
 // @Failure      400   {object}  model.ApiResponse
 // @Failure      500   {object}  model.ApiResponse
+// @Security     Bearer
 // @Router       /api/v1/orders [post]
 func (h *BusinessHandler) CreateOrder(c *gin.Context) {
 	h.handleCreateOrder(c, "order accepted")
@@ -67,6 +68,7 @@ func (h *BusinessHandler) CreateOrder(c *gin.Context) {
 // @Success      200   {object}  model.ApiResponse{data=object{order_no=string,channel=string}}
 // @Failure      400   {object}  model.ApiResponse
 // @Failure      500   {object}  model.ApiResponse
+// @Security     Bearer
 // @Router       /api/v1/orders/sync [post]
 func (h *BusinessHandler) CreateOrderSync(c *gin.Context) {
 	h.handleCreateOrder(c, "order created")
@@ -135,6 +137,7 @@ func (h *BusinessHandler) handleCreateOrder(c *gin.Context, successMsg string) {
 // @Param        orderNo  path      string  true  "订单号"
 // @Success      200      {object}  model.ApiResponse{data=model.Order}
 // @Failure      404      {object}  model.ApiResponse
+// @Security     Bearer
 // @Router       /api/v1/orders/{orderNo} [get]
 func (h *BusinessHandler) GetOrder(c *gin.Context) {
 	traceID := middleware.GetTraceID(c)
@@ -167,6 +170,7 @@ func (h *BusinessHandler) GetOrder(c *gin.Context) {
 // @Success      200     {object}  model.ApiResponse{data=model.UserProfile}
 // @Failure      400     {object}  model.ApiResponse
 // @Failure      404     {object}  model.ApiResponse
+// @Security     Bearer
 // @Router       /api/v1/users/{userID}/profile [get]
 func (h *BusinessHandler) GetUserProfile(c *gin.Context) {
 	traceID := middleware.GetTraceID(c)
@@ -224,6 +228,31 @@ func (h *BusinessHandler) GetCacheStats(c *gin.Context) {
 	})
 }
 
+// parseSearchParams 提取搜索公共参数 (keyword/page/size), 返回 (keyword, page, size, ok)
+// ok=false 时 caller 已写入错误响应
+func (h *BusinessHandler) parseSearchParams(c *gin.Context) (string, int, int, bool) {
+	traceID := middleware.GetTraceID(c)
+	keyword := c.DefaultQuery("q", "")
+	if keyword == "" {
+		c.JSON(http.StatusBadRequest, model.ApiResponse{
+			Code:    400,
+			Message: "query parameter 'q' is required",
+			TraceID: traceID,
+		})
+		return "", 0, 0, false
+	}
+
+	page := 1
+	size := 20
+	if p, err := strconv.Atoi(c.DefaultQuery("page", "1")); err == nil && p > 0 {
+		page = p
+	}
+	if s, err := strconv.Atoi(c.DefaultQuery("size", "20")); err == nil && s > 0 && s <= 100 {
+		size = s
+	}
+	return keyword, page, size, true
+}
+
 // SearchOrders GET /api/v1/orders/search?q=keyword&page=1&size=20
 // @Summary      搜索订单
 // @Description  通过Elasticsearch全文搜索订单
@@ -234,26 +263,13 @@ func (h *BusinessHandler) GetCacheStats(c *gin.Context) {
 // @Param        size   query     int     false  "每页条数"  default(20)
 // @Success      200    {object}  model.ApiResponse
 // @Failure      400    {object}  model.ApiResponse
+// @Security     Bearer
 // @Router       /api/v1/orders/search [get]
 func (h *BusinessHandler) SearchOrders(c *gin.Context) {
 	traceID := middleware.GetTraceID(c)
-	keyword := c.DefaultQuery("q", "")
-	if keyword == "" {
-		c.JSON(http.StatusBadRequest, model.ApiResponse{
-			Code:    400,
-			Message: "query parameter 'q' is required",
-			TraceID: traceID,
-		})
+	keyword, page, size, ok := h.parseSearchParams(c)
+	if !ok {
 		return
-	}
-
-	page := 1
-	size := 20
-	if p, err := strconv.Atoi(c.DefaultQuery("page", "1")); err == nil && p > 0 {
-		page = p
-	}
-	if s, err := strconv.Atoi(c.DefaultQuery("size", "20")); err == nil && s > 0 && s <= 100 {
-		size = s
 	}
 
 	orders, total, err := h.orderSvc.SearchOrders(c.Request.Context(), keyword, page, size)
@@ -290,26 +306,13 @@ func (h *BusinessHandler) SearchOrders(c *gin.Context) {
 // @Param        size   query     int     false  "每页条数"  default(20)
 // @Success      200    {object}  model.ApiResponse
 // @Failure      400    {object}  model.ApiResponse
+// @Security     Bearer
 // @Router       /api/v1/users/search [get]
 func (h *BusinessHandler) SearchUsers(c *gin.Context) {
 	traceID := middleware.GetTraceID(c)
-	keyword := c.DefaultQuery("q", "")
-	if keyword == "" {
-		c.JSON(http.StatusBadRequest, model.ApiResponse{
-			Code:    400,
-			Message: "query parameter 'q' is required",
-			TraceID: traceID,
-		})
+	keyword, page, size, ok := h.parseSearchParams(c)
+	if !ok {
 		return
-	}
-
-	page := 1
-	size := 20
-	if p, err := strconv.Atoi(c.DefaultQuery("page", "1")); err == nil && p > 0 {
-		page = p
-	}
-	if s, err := strconv.Atoi(c.DefaultQuery("size", "20")); err == nil && s > 0 && s <= 100 {
-		size = s
 	}
 
 	profiles, total, err := h.profileSvc.SearchUsers(c.Request.Context(), keyword, page, size)
@@ -346,6 +349,7 @@ func (h *BusinessHandler) SearchUsers(c *gin.Context) {
 // @Success      200   {object}  model.ApiResponse{data=model.UserProfile}
 // @Failure      400   {object}  model.ApiResponse
 // @Failure      500   {object}  model.ApiResponse
+// @Security     Bearer
 // @Router       /api/v1/users/profile [post]
 func (h *BusinessHandler) UpsertUserProfile(c *gin.Context) {
 	traceID := middleware.GetTraceID(c)

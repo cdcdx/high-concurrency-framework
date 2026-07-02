@@ -111,6 +111,8 @@ func (m *Manager) Close() {
 
 // IsMySQLReady 检查MySQL是否可用
 func (m *Manager) IsMySQLReady(ctx context.Context) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	if m.MySQL == nil || m.MySQL.IsNil() {
 		return false
 	}
@@ -119,6 +121,8 @@ func (m *Manager) IsMySQLReady(ctx context.Context) bool {
 
 // IsMongoReady 检查MongoDB是否可用
 func (m *Manager) IsMongoReady(ctx context.Context) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	if m.MongoClient == nil {
 		return false
 	}
@@ -127,6 +131,8 @@ func (m *Manager) IsMongoReady(ctx context.Context) bool {
 
 // IsPostgresReady 检查PostgreSQL是否可用
 func (m *Manager) IsPostgresReady(ctx context.Context) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	if m.Postgres == nil || m.Postgres.IsNil() {
 		return false
 	}

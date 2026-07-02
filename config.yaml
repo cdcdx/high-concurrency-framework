@@ -15,6 +15,7 @@ cache:
     min_idle: 10
     dial_timeout_ms: 3000
     read_timeout_ms: 1000
+    ttl_seconds: 1800              # L2 基础 TTL (秒), 默认 1800 (30分钟)
   jitter_percent: 0.2              # TTL随机偏移 ±20%, 防雪崩
   null_ttl_seconds: 60             # 空标记过期时间, 防穿透
 
@@ -145,3 +146,7 @@ cors:
     - X-Trace-Id
   allow_credentials: true
   max_age: 86400                   # 预检请求缓存24小时
+
+jwt:
+  secret: "4836c0bf4d6d6ce80922e6c17327bfa5e78d29118f9a350d228fb79cc802ac6c"    # JWT 签名密钥, 生产环境必须修改
+  expire_seconds: 7200                                                          # Token 过期时间 (秒), 默认2小时

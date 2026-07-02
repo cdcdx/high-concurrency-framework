@@ -10,6 +10,16 @@ definitions:
       trace_id:
         type: string
     type: object
+  github_com_cdcdx_high-concurrency-framework_internal_model.LoginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - password
+    - username
+    type: object
   github_com_cdcdx_high-concurrency-framework_internal_model.Order:
     properties:
       amount:
@@ -29,6 +39,61 @@ definitions:
         type: integer
     required:
     - user_id
+    type: object
+  github_com_cdcdx_high-concurrency-framework_internal_model.RegisterRequest:
+    properties:
+      email:
+        maxLength: 128
+        type: string
+      password:
+        maxLength: 128
+        minLength: 6
+        type: string
+      phone:
+        maxLength: 20
+        type: string
+      username:
+        maxLength: 64
+        minLength: 3
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  github_com_cdcdx_high-concurrency-framework_internal_model.TokenResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        description: 秒
+        type: integer
+      token_type:
+        description: '"Bearer"'
+        type: string
+      user_id:
+        type: integer
+      username:
+        type: string
+    type: object
+  github_com_cdcdx_high-concurrency-framework_internal_model.User:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      last_login_at:
+        type: string
+      phone:
+        type: string
+      status:
+        description: 1=正常 0=禁用
+        type: integer
+      updated_at:
+        type: string
+      username:
+        type: string
     type: object
   github_com_cdcdx_high-concurrency-framework_internal_model.UserProfile:
     properties:
@@ -84,6 +149,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse'
+      security:
+      - Bearer: []
       summary: 行为摘要
       tags:
       - 分析
@@ -116,9 +183,101 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse'
+      security:
+      - Bearer: []
       summary: 每日统计
       tags:
       - 分析
+  /api/v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: 验证用户名密码并返回JWT令牌
+      parameters:
+      - description: 登录信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.TokenResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse'
+      summary: 用户登录
+      tags:
+      - 认证
+  /api/v1/auth/me:
+    get:
+      description: 根据JWT令牌返回当前登录用户信息 (需Authorization头)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.User'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse'
+      security:
+      - Bearer: []
+      summary: 获取当前用户信息
+      tags:
+      - 认证
+  /api/v1/auth/register:
+    post:
+      consumes:
+      - application/json
+      description: 创建新用户账号并返回JWT令牌
+      parameters:
+      - description: 注册信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.TokenResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse'
+      summary: 用户注册
+      tags:
+      - 认证
   /api/v1/monitor/cache-stats:
     get:
       description: 返回L1本地缓存命中率和多级缓存统计信息
@@ -195,6 +354,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse'
+      security:
+      - Bearer: []
       summary: 创建订单 (异步)
       tags:
       - 订单
@@ -223,6 +384,8 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse'
+      security:
+      - Bearer: []
       summary: 查询订单
       tags:
       - 订单
@@ -256,6 +419,8 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse'
+      security:
+      - Bearer: []
       summary: 搜索订单
       tags:
       - 订单
@@ -296,6 +461,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse'
+      security:
+      - Bearer: []
       summary: 创建订单 (同步)
       tags:
       - 订单
@@ -328,6 +495,8 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse'
+      security:
+      - Bearer: []
       summary: 查询用户资料
       tags:
       - 用户
@@ -363,6 +532,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse'
+      security:
+      - Bearer: []
       summary: 创建/更新用户资料
       tags:
       - 用户
@@ -396,7 +567,16 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse'
+      security:
+      - Bearer: []
       summary: 搜索用户
       tags:
       - 用户
+securityDefinitions:
+  Bearer:
+    description: 输入JWT令牌 (可带或不带 "Bearer " 前缀), 通过 POST /api/v1/auth/login 或 /api/v1/auth/register
+      获取
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"

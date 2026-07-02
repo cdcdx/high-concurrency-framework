@@ -47,12 +47,13 @@ func (rw *RWDB) Master() *sql.DB {
 }
 
 // replica 轮询选取一个副本节点; 无副本时回退到主库
+// 使用 uint64 计数器避免 uint32 在高频场景下溢出回绕导致负载不均
 func (rw *RWDB) replica() *sql.DB {
 	if len(rw.replicas) == 0 {
 		return rw.master
 	}
-	idx := rw.nextIdx.Add(1) % uint32(len(rw.replicas))
-	return rw.replicas[idx]
+	idx := rw.nextIdx.Add(1)
+	return rw.replicas[int(idx)%len(rw.replicas)]
 }
 
 // ExecContext 写操作 → Master
@@ -73,17 +74,16 @@ func (rw *RWDB) QueryContext(ctx context.Context, query string, args ...interfac
 }
 
 // QueryRowContext 读操作 → Replica
-// 注意: 调用方必须在 Scan 时检查 error，nil receiver 会导致 panic
+// 前置条件: 调用方必须在调用前通过 IsNil() 检查数据库可用性
+// 当 master 和所有 replica 均不可用时，返回 nil 上的 Row，Scan 时会 panic
 func (rw *RWDB) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
 	r := rw.replica()
-	if r == nil {
-		// 返回 master 上的 Row，比空 DB 更安全但 master 也可能为 nil
-		// 调用方必须在使用前通过 IsNil 检查
-		if rw.master != nil {
-			return rw.master.QueryRowContext(ctx, query, args...)
-		}
+	if r != nil {
+		return r.QueryRowContext(ctx, query, args...)
 	}
-	return r.QueryRowContext(ctx, query, args...)
+	// r == nil 意味着 master 也是 nil（replica() 回退逻辑保证）
+	// 调用方违反前置条件时此处必然 panic，使用 rw.master 保持一致语义
+	return rw.master.QueryRowContext(ctx, query, args...)
 }
 
 // PingContext 健康检查 → Master

@@ -205,9 +205,12 @@ func (ec *EventConsumer) consumeLoop(ctx context.Context, workerID int) {
 
 		// 无论成功失败都提交offset (避免阻塞)
 		// DLQ保证了失败消息不丢失
-		if commitErr := ec.reader.CommitMessages(msgCtx, msg); commitErr != nil {
+		// 使用 Background context，防止原始 ctx 被取消后 commit 失败导致重复消费
+		commitCtx, commitCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if commitErr := ec.reader.CommitMessages(commitCtx, msg); commitErr != nil {
 			ec.logger.Errorw("commit offset failed", "worker", workerID, "traceId", traceID, "err", commitErr)
 		}
+		commitCancel()
 	}
 }
 

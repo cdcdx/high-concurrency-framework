@@ -19,6 +19,11 @@ const docTemplate = `{
     "paths": {
         "/api/v1/analytics/behaviors": {
             "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
                 "description": "查询用户行为事件汇总数据",
                 "produces": [
                     "application/json"
@@ -53,6 +58,11 @@ const docTemplate = `{
         },
         "/api/v1/analytics/daily": {
             "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
                 "description": "查询PostgreSQL中的每日统计数据，支持日期范围筛选",
                 "produces": [
                     "application/json"
@@ -92,6 +102,159 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/login": {
+            "post": {
+                "description": "验证用户名密码并返回JWT令牌",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "认证"
+                ],
+                "summary": "用户登录",
+                "parameters": [
+                    {
+                        "description": "登录信息",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.LoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.TokenResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/me": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "根据JWT令牌返回当前登录用户信息 (需Authorization头)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "认证"
+                ],
+                "summary": "获取当前用户信息",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.User"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/register": {
+            "post": {
+                "description": "创建新用户账号并返回JWT令牌",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "认证"
+                ],
+                "summary": "用户注册",
+                "parameters": [
+                    {
+                        "description": "注册信息",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.RegisterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.TokenResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.ApiResponse"
                         }
@@ -161,6 +324,11 @@ const docTemplate = `{
         },
         "/api/v1/orders": {
             "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
                 "description": "双通道分流：同步(限流内) | 异步(超限→Kafka)，适用于高并发写场景",
                 "consumes": [
                     "application/json"
@@ -227,6 +395,11 @@ const docTemplate = `{
         },
         "/api/v1/orders/search": {
             "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
                 "description": "通过Elasticsearch全文搜索订单",
                 "produces": [
                     "application/json"
@@ -276,6 +449,11 @@ const docTemplate = `{
         },
         "/api/v1/orders/sync": {
             "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
                 "description": "强制同步写入MySQL，不走Kafka，立即可读",
                 "consumes": [
                     "application/json"
@@ -342,6 +520,11 @@ const docTemplate = `{
         },
         "/api/v1/orders/{orderNo}": {
             "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
                 "description": "通过订单号查询，走L1→L2→MySQL三级缓存",
                 "produces": [
                     "application/json"
@@ -389,6 +572,11 @@ const docTemplate = `{
         },
         "/api/v1/users/profile": {
             "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
                 "description": "MongoDB upsert 写入，同时更新缓存",
                 "consumes": [
                     "application/json"
@@ -447,6 +635,11 @@ const docTemplate = `{
         },
         "/api/v1/users/search": {
             "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
                 "description": "通过Elasticsearch全文搜索用户",
                 "produces": [
                     "application/json"
@@ -496,6 +689,11 @@ const docTemplate = `{
         },
         "/api/v1/users/{userID}/profile": {
             "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
                 "description": "走多级缓存: L1→L2→L3(MongoDB)",
                 "produces": [
                     "application/json"
@@ -564,6 +762,21 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_cdcdx_high-concurrency-framework_internal_model.LoginRequest": {
+            "type": "object",
+            "required": [
+                "password",
+                "username"
+            ],
+            "properties": {
+                "password": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_cdcdx_high-concurrency-framework_internal_model.Order": {
             "type": "object",
             "required": [
@@ -591,6 +804,85 @@ const docTemplate = `{
                 "user_id": {
                     "type": "integer",
                     "minimum": 1
+                }
+            }
+        },
+        "github_com_cdcdx_high-concurrency-framework_internal_model.RegisterRequest": {
+            "type": "object",
+            "required": [
+                "password",
+                "username"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "password": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 6
+                },
+                "phone": {
+                    "type": "string",
+                    "maxLength": 20
+                },
+                "username": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "minLength": 3
+                }
+            }
+        },
+        "github_com_cdcdx_high-concurrency-framework_internal_model.TokenResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "expires_in": {
+                    "description": "秒",
+                    "type": "integer"
+                },
+                "token_type": {
+                    "description": "\"Bearer\"",
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_cdcdx_high-concurrency-framework_internal_model.User": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "last_login_at": {
+                    "type": "string"
+                },
+                "phone": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "1=正常 0=禁用",
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },
@@ -634,6 +926,14 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        }
+    },
+    "securityDefinitions": {
+        "Bearer": {
+            "description": "输入JWT令牌 (可带或不带 \"Bearer \" 前缀), 通过 POST /api/v1/auth/login 或 /api/v1/auth/register 获取",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
         }
     }
 }`

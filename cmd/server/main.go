@@ -6,6 +6,10 @@ package main
 // @contact.name    cdcdx
 // @host            localhost:8080
 // @BasePath        /
+// @securityDefinitions.apikey Bearer
+// @in header
+// @name Authorization
+// @description 输入JWT令牌 (可带或不带 "Bearer " 前缀), 通过 POST /api/v1/auth/login 或 /api/v1/auth/register 获取
 
 import (
 	"context"
@@ -151,6 +155,9 @@ func main() {
 	multiLevelCache.SetJitterPct(cfg.Cache.JitterPercent)
 	multiLevelCache.SetNullTTL(cfg.Cache.NullTTL())
 	multiLevelCache.SetL1BaseTTL(time.Duration(cfg.Cache.L1.TTLSeconds) * time.Second)
+	if cfg.Cache.L2.TTLSeconds > 0 {
+		multiLevelCache.SetL2BaseTTL(time.Duration(cfg.Cache.L2.TTLSeconds) * time.Second)
+	}
 
 	// 熔断器
 	circuitBreaker := resilience.NewCircuitBreaker(
@@ -211,6 +218,10 @@ func main() {
 	// 分析服务 (PostgreSQL)
 	analyticsRepo := database.NewAnalyticsRepo(dbManager.Postgres)
 	analyticsService := service.NewAnalyticsService(analyticsRepo, logger)
+
+	// 认证服务 (MySQL users 表 + JWT)
+	userAuthRepo := database.NewUserAuthRepo(dbManager.MySQL)
+	authService := service.NewAuthService(userAuthRepo, cfg.JWT.Secret, cfg.JWT.ExpireSeconds, logger)
 
 	// --- 9. 统一初始化所有数据库表/索引 (DDL from sql/*) ---
 	go func() {
@@ -276,6 +287,7 @@ func main() {
 		circuitBreaker,
 		rateLimiter,
 	)
+	authHandler := handler.NewAuthHandler(authService, logger)
 	// Kafka 连通性检查函数
 	kafkaChecker := func(ctx context.Context) error {
 		return kafkaProducer.Ping(ctx)
@@ -290,9 +302,21 @@ func main() {
 	)
 
 	// === 路由注册 ===
-	// 业务API
-	v1 := router.Group("/api/v1")
+
+	// 1. 认证路由 (公开, 无需JWT)
+	auth := router.Group("/api/v1/auth")
 	{
+		auth.POST("/register", authHandler.Register)
+		auth.POST("/login", authHandler.Login)
+	}
+
+	// 2. 业务API (需JWT认证)
+	v1 := router.Group("/api/v1")
+	v1.Use(middleware.JWTAuth(authService))
+	{
+		// 当前用户信息
+		v1.GET("/auth/me", authHandler.GetMe)
+
 		// 订单 (MySQL + Kafka + ES)
 		v1.POST("/orders", businessHandler.CreateOrder)          // MySQL写入 + Kafka
 		v1.POST("/orders/sync", businessHandler.CreateOrderSync) // MySQL写入
@@ -303,16 +327,13 @@ func main() {
 		v1.POST("/users/profile", businessHandler.UpsertUserProfile)     // MongoDB写入
 		v1.GET("/users/:userID/profile", businessHandler.GetUserProfile) // L1→L2→MongoDB
 		v1.GET("/users/search", businessHandler.SearchUsers)             // ES全文搜索
+
+		// 分析接口 (PostgreSQL)
+		v1.GET("/analytics/daily", analyticsHandler.GetDailyStats)
+		v1.GET("/analytics/behaviors", analyticsHandler.GetBehaviorSummary)
 	}
 
-	// 分析接口 (PostgreSQL)
-	analytics := router.Group("/api/v1/analytics")
-	{
-		analytics.GET("/daily", analyticsHandler.GetDailyStats)
-		analytics.GET("/behaviors", analyticsHandler.GetBehaviorSummary)
-	}
-
-	// 监控接口 (内存)
+	// 3. 监控接口 (公开, 无需JWT)
 	monitor := router.Group("/api/v1/monitor")
 	{
 		monitor.GET("/metrics", monitorHandler.Metrics)
