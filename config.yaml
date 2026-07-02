@@ -1,0 +1,147 @@
+server:
+  port: 8080
+  mode: release                    # debug | release | test
+
+cache:
+  l1:
+    max_entries: 1000000           # Caffeine等价: 100万条目
+    ttl_seconds: 30                # 过期时间
+    refresh_seconds: 25            # 提前异步刷新
+  l2:
+    addresses:                     # Redis Cluster 节点
+      - "127.0.0.1:6379"
+    password: ""
+    pool_size: 100                 # 连接池大小
+    min_idle: 10
+    dial_timeout_ms: 3000
+    read_timeout_ms: 1000
+  jitter_percent: 0.2              # TTL随机偏移 ±20%, 防雪崩
+  null_ttl_seconds: 60             # 空标记过期时间, 防穿透
+
+# ==========================================
+# 多数据库架构: 按功能选择最优存储引擎
+# ==========================================
+databases:
+  # MySQL: 核心交易数据 (订单/事务) - OLTP, ACID, 行级锁
+  mysql:
+    enabled: true
+    driver: mysql
+    dsn: "demo:123456@tcp(127.0.0.1:3306)/demo?charset=utf8mb4&parseTime=true"
+    # replica_dsns:                          # 只读副本 (可选, 负载均衡轮询)
+    #   - "demo:123456@tcp(replica1:3306)/demo?charset=utf8mb4&parseTime=true"
+    max_open_conns: 50
+    max_idle_conns: 10
+    conn_max_lifetime_seconds: 1800
+
+  # PostgreSQL: 分析/报表/时序数据 - 窗口函数, CTE, JSONB, 地理空间
+  postgres:
+    enabled: true
+    driver: postgres
+    dsn: "postgres://demo:123456@127.0.0.1:5432/demo?sslmode=disable"
+    # replica_dsns:                          # 只读副本 (可选)
+    #   - "postgres://demo:123456@replica1:5432/demo?sslmode=disable"
+    max_open_conns: 30
+    max_idle_conns: 5
+    conn_max_lifetime_seconds: 1800
+
+  # MongoDB: 非结构化数据 (用户资料/行为日志/商品目录) - Schema灵活, 嵌套文档
+  mongodb:
+    enabled: true
+    uri: "mongodb://127.0.0.1:27017"
+    username: "demo"
+    password: "123456"
+    database: "demo"
+    max_pool_size: 100
+    min_pool_size: 10
+    connect_timeout_seconds: 10
+    # 读偏好: primary | primaryPreferred | secondary | secondaryPreferred | nearest
+    # secondaryPreferred = 优先副本读, 副本不可用时回退主库 (推荐)
+    read_preference: "primary"       # 单机模式用 primary, 集群用 secondaryPreferred
+
+  # Elasticsearch: 全文搜索与聚合分析 (订单搜索/用户搜索/日志索引)
+  elasticsearch:
+    enabled: true
+    addresses:
+      - "http://127.0.0.1:9200"
+    username: ""
+    password: ""
+
+kafka:
+  brokers:
+    - "127.0.0.1:9092"
+  producer:
+    topic: "order-create"
+    acks: all                      # 所有ISR副本确认
+    compression: lz4
+    batch_size: 16384              # 16KB微批
+    linger_ms: 5                   # 5ms聚合延迟
+    max_retries: 3
+    idempotent: true               # 幂等性
+  consumer:
+    group_id: "order-consumer-group"
+    topic: "order-create"
+    dlq_topic: "order-create.dlq"  # 死信队列
+    max_retries: 3
+    rate_limit: 2000               # 每秒消费速率
+    concurrency: 8                 # 并行消费协程数
+    min_bytes: 1024
+    max_bytes: 10485760            # 10MB
+
+circuit_breaker:
+  max_requests: 5                  # 半开状态允许的探测请求数
+  interval_seconds: 60             # 统计窗口
+  timeout_seconds: 30              # OPEN→HALF_OPEN等待时间
+  failure_threshold: 0.5           # 50%失败率触发熔断
+  slow_call_threshold_ms: 1000     # 慢调用阈值
+
+rate_limiter:
+  bucket_capacity: 5000            # 令牌桶容量
+  refill_rate: 5000                # 每秒补充令牌数
+
+hot_key:
+  window_seconds: 10               # 滑动窗口大小
+  slots: 10                        # 窗口分片数
+  threshold: 100                   # 热点判定阈值 (10秒内100次)
+
+observability:
+  trace:
+    enabled: true
+    exporter: stdout               # stdout | otlp
+  metrics:
+    enabled: true
+
+logging:
+  level: debug                     # debug | info | warn | error
+  format: text                     # text(控制台彩色) | structured(JSON机器可读)
+  output: ''                       # 日志文件路径, 为空则仅输出 stderr /var/log/server-app.log
+  max_size_mb: 100                 # 单个日志文件最大 MB
+  max_backups: 7                   # 保留旧日志文件数量
+  max_age_days: 30                 # 保留旧日志最大天数
+  compress: true                   # 压缩旧日志 (.gz)
+
+swagger:
+  enabled: true                    # 是否启用 Swagger 在线文档 (生产环境建议 false)
+
+cors:
+  enabled: true                    # 是否启用跨域支持 (生产环境建议限定 allowed_origins)
+  allowed_origins:
+    - "*"                          # 允许所有来源, 生产环境改为具体域名如 ["https://example.com"]
+  allowed_methods:
+    - GET
+    - POST
+    - PUT
+    - PATCH
+    - DELETE
+    - OPTIONS
+  allowed_headers:
+    - Origin
+    - Content-Type
+    - Accept
+    - Authorization
+    - X-Trace-Id
+    - X-Request-ID
+  exposed_headers:
+    - Content-Length
+    - X-Trace-Id
+  allow_credentials: true
+  max_age: 86400                   # 预检请求缓存24小时

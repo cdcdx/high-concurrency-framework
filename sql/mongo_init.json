@@ -1,0 +1,12 @@
+{
+  "collections": {
+    "user_profiles": {
+      "comment": "用户资料（非结构化数据）",
+      "indexes": [
+        {"keys": {"user_id": 1}, "unique": true, "comment": "用户ID唯一索引"},
+        {"keys": {"email": 1},    "comment": "邮箱普通索引"},
+        {"keys": {"nickname": 1}, "comment": "昵称普通索引"}
+      ]
+    }
+  }
+}
