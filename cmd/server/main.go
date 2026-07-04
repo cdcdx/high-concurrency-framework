@@ -245,6 +245,7 @@ func main() {
 		orderService.HandleOrderEvent,
 		dlqProducer,
 		logger,
+		cfg.Kafka.Consumer.StartFromLatest,
 	)
 	go kafkaConsumer.Start(context.Background(), cfg.Kafka.Consumer.Concurrency)
 	defer kafkaConsumer.Stop()

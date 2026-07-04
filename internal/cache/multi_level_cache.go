@@ -2,6 +2,8 @@ package cache
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"sync/atomic"
@@ -21,11 +23,11 @@ type DataLoader func(ctx context.Context, key string) (interface{}, error)
 // MultiLevelCache 多级缓存 (L1 Caffeine/Ristretto → L2 Redis → L3 DB)
 // 构建完整的缓存防护矩阵: 穿透/击穿/雪崩全防护
 type MultiLevelCache struct {
-	l1          *ristretto.Cache       // L1 本地缓存 (Ristretto, 等价于 Caffeine)
-	l2          *redis.Client          // L2 分布式缓存 (Redis)
-	logger      *zap.SugaredLogger
-	loader      DataLoader              // L3 DB回源
-	hotKeys     *HotKeyDetector         // 热点Key检测
+	l1      *ristretto.Cache // L1 本地缓存 (Ristretto, 等价于 Caffeine)
+	l2      *redis.Client    // L2 分布式缓存 (Redis)
+	logger  *zap.SugaredLogger
+	loader  DataLoader      // L3 DB回源
+	hotKeys *HotKeyDetector // 热点Key检测
 
 	// 缓存 TTL 配置
 	l1BaseTTL time.Duration // L1 基础 TTL (可通过 SetL1TTL 覆盖)
@@ -50,12 +52,12 @@ type MultiLevelCache struct {
 
 // 默认缓存参数
 const (
-	DefaultL1BaseTTL  = 30 * time.Second
-	DefaultL2BaseTTL  = 30 * time.Minute
-	DefaultJitterPct  = 0.2
-	DefaultNullTTL    = 60 * time.Second
-	DefaultLockTTL    = 10 * time.Second
-	DefaultLockRetry  = 50 * time.Millisecond
+	DefaultL1BaseTTL = 30 * time.Second
+	DefaultL2BaseTTL = 30 * time.Minute
+	DefaultJitterPct = 0.2
+	DefaultNullTTL   = 60 * time.Second
+	DefaultLockTTL   = 10 * time.Second
+	DefaultLockRetry = 50 * time.Millisecond
 )
 
 // NewMultiLevelCache 创建多级缓存
@@ -310,11 +312,11 @@ func (mc *MultiLevelCache) Stats() map[string]interface{} {
 		comboRate = float64(comboHits) / float64(total)
 	}
 	return map[string]interface{}{
-		"l1_hits":    atomic.LoadUint64(&mc.l1Hits),
-		"l2_hits":    atomic.LoadUint64(&mc.l2Hits),
-		"misses":     misses,
-		"total":      total,
-		"l1_hit_rate": mc.L1HitRate(),
+		"l1_hits":        atomic.LoadUint64(&mc.l1Hits),
+		"l2_hits":        atomic.LoadUint64(&mc.l2Hits),
+		"misses":         misses,
+		"total":          total,
+		"l1_hit_rate":    mc.L1HitRate(),
 		"combo_hit_rate": comboRate,
 	}
 }
@@ -339,13 +341,17 @@ func (mc *MultiLevelCache) parseValue(val string) interface{} {
 }
 
 // JitterDuration 在duration ± pct 范围内随机偏移 (公开, 供测试/配置使用)
+// 使用 crypto/rand 生成均匀分布的随机数
 func JitterDuration(d time.Duration, pct float64) time.Duration {
 	if pct <= 0 {
 		return d
 	}
-	delta := time.Duration(float64(d) * pct)
-	offset := time.Duration(int64(delta) * int64(time.Now().UnixNano()%200-100) / 100)
-	return d + offset
+	var b [8]byte
+	_, _ = rand.Read(b[:])
+	n := float64(binary.LittleEndian.Uint64(b[:])>>11) / (1 << 53)
+	delta := float64(d) * pct
+	result := float64(d) - delta + 2*delta*n
+	return time.Duration(result)
 }
 
 // jitterDuration 内部别名 (保持向后兼容)

@@ -140,7 +140,7 @@ func (h *HealthChecker) StartupHandler() gin.HandlerFunc {
 			// 检查缓存预热是否完成
 			if h.cache != nil {
 				stats := h.cache.Stats()
-				if stats["total"].(uint64) > 0 {
+				if total, ok := stats["total"].(uint64); ok && total > 0 {
 					h.startupCompleted.Store(true)
 				}
 			}

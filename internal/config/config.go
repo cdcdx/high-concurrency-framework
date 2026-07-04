@@ -1,6 +1,8 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"os"
 	"time"
@@ -113,14 +115,15 @@ type ProducerConfig struct {
 }
 
 type ConsumerConfig struct {
-	GroupID     string `yaml:"group_id"`
-	Topic       string `yaml:"topic"`
-	DLQTopic    string `yaml:"dlq_topic"`
-	MaxRetries  int    `yaml:"max_retries"`
-	RateLimit   int    `yaml:"rate_limit"`
-	Concurrency int    `yaml:"concurrency"`
-	MinBytes    int    `yaml:"min_bytes"`
-	MaxBytes    int    `yaml:"max_bytes"`
+	GroupID        string `yaml:"group_id"`
+	Topic          string `yaml:"topic"`
+	DLQTopic       string `yaml:"dlq_topic"`
+	MaxRetries     int    `yaml:"max_retries"`
+	RateLimit      int    `yaml:"rate_limit"`
+	Concurrency    int    `yaml:"concurrency"`
+	MinBytes       int    `yaml:"min_bytes"`
+	MaxBytes       int    `yaml:"max_bytes"`
+	StartFromLatest bool  `yaml:"start_from_latest"` // true=跳过积压, false=消费全部历史 (削峰填谷)
 }
 
 type CircuitBreakerConfig struct {
@@ -173,8 +176,8 @@ type SwaggerConfig struct {
 
 // JWTConfig JWT 认证配置
 type JWTConfig struct {
-	Secret         string `yaml:"secret"`           // JWT 签名密钥 (生产环境使用强随机字符串)
-	ExpireSeconds  int    `yaml:"expire_seconds"`   // Token 过期时间 (秒)
+	Secret        string `yaml:"secret"`         // JWT 签名密钥 (生产环境使用强随机字符串)
+	ExpireSeconds int    `yaml:"expire_seconds"` // Token 过期时间 (秒)
 }
 
 // CORSConfig 跨域配置
@@ -205,16 +208,16 @@ var defaultConfig = Config{
 	},
 	Kafka: KafkaConfig{
 		Producer: ProducerConfig{Topic: "order-create", Acks: "all", Compression: "lz4", BatchSize: 16384, LingerMs: 5, MaxRetries: 3, Idempotent: true},
-		Consumer: ConsumerConfig{GroupID: "order-consumer-group", Topic: "order-create", DLQTopic: "order-create.dlq", MaxRetries: 3, RateLimit: 2000, Concurrency: 8},
+		Consumer: ConsumerConfig{GroupID: "order-consumer-group", Topic: "order-create", DLQTopic: "order-create.dlq", MaxRetries: 3, RateLimit: 2000, Concurrency: 8, StartFromLatest: false},
 	},
 	CircuitBreaker: CircuitBreakerConfig{MaxRequests: 5, IntervalSeconds: 60, TimeoutSeconds: 30, FailureThreshold: 0.5, SlowCallThresholdMs: 1000},
 	RateLimiter:    RateLimiterConfig{BucketCapacity: 5000, RefillRate: 5000},
 	HotKey:         HotKeyConfig{WindowSeconds: 10, Slots: 10, Threshold: 100},
 	Logging:        LoggingConfig{Level: "debug", Format: "structured"},
-	Swagger:        SwaggerConfig{Enabled: false}, // 默认关闭, 开发环境通过 config.yaml 开启
+	Swagger:        SwaggerConfig{Enabled: false},                                     // 默认关闭, 开发环境通过 config.yaml 开启
 	JWT:            JWTConfig{Secret: "change-me-in-production", ExpireSeconds: 7200}, // 默认2小时
 	CORS: CORSConfig{
-		Enabled:          false,                                       // 默认关闭, 开发环境通过 config.yaml 开启
+		Enabled:          false, // 默认关闭, 开发环境通过 config.yaml 开启
 		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Trace-Id", "X-Request-ID"},
@@ -268,11 +271,17 @@ func (c *CacheConfig) NullTTL() time.Duration {
 }
 
 // jitterDuration 在 base * (1 ± pct) 范围内随机偏移
+// 使用 crypto/rand 确保均匀分布, 防止所有 Pod 同时过期 (缓存雪崩)
 func jitterDuration(base time.Duration, pct float64) time.Duration {
 	if pct <= 0 {
 		return base
 	}
-	delta := time.Duration(float64(base) * pct)
-	// 使用时间戳做简易随机 (更好的做法是 crypto/rand, 这里做演示)
-	return base - delta + time.Duration(int64(delta)*2*int64(time.Now().UnixNano()%100)/100)
+	// 使用 crypto/rand 生成 [0,1) 均匀分布的随机数
+	var b [8]byte
+	_, _ = rand.Read(b[:])
+	n := float64(binary.LittleEndian.Uint64(b[:])>>11) / (1 << 53)
+	// 偏移范围: base * (1 - pct) → base * (1 + pct)
+	delta := float64(base) * pct
+	result := float64(base) - delta + 2*delta*n
+	return time.Duration(result)
 }

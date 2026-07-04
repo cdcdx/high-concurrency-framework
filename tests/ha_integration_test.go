@@ -423,6 +423,48 @@ func TestWriteRateLimitSyncAsyncSplit(t *testing.T) {
 	}
 }
 
+// TestWriteForceSync 测试强制同步写入 (绕过限流器/熔断器, 走完整同步流程)
+func TestWriteForceSync(t *testing.T) {
+	env := setupFullTestEnv(t)
+
+	// 耗尽令牌桶 → 确认正常 CreateOrder 会降级为异步
+	for i := 0; i < 20; i++ {
+		env.RateLimiter.TryAcquire()
+	}
+
+	// 1. 普通 CreateOrder: 令牌耗尽应该走异步
+	orderJSON := `{"user_id": 10020, "amount": 199.99}`
+	w1 := doJSON(env.Router, http.MethodPost, "/api/v1/orders", orderJSON)
+	resp1 := parseResponse(t, w1)
+	_ = resp1
+	if dataMap, ok := resp1.Data.(map[string]interface{}); ok {
+		channel, _ := dataMap["channel"].(string)
+		if channel != "async" {
+			t.Skip("expected async for normal CreateOrder when bucket exhausted, got " + channel)
+		}
+	}
+
+	// 2. 强制同步 CreateOrderSync: 绕过限流器, 走完整同步写流程
+	w2 := doJSON(env.Router, http.MethodPost, "/api/v1/orders/sync", orderJSON)
+	resp2 := parseResponse(t, w2)
+
+	if resp2.Code != 200 {
+		t.Fatalf("force sync: expected 200, got %d, msg=%s", resp2.Code, resp2.Message)
+	}
+
+	if dataMap, ok := resp2.Data.(map[string]interface{}); ok {
+		channel, _ := dataMap["channel"].(string)
+		if channel != "sync" {
+			t.Errorf("force sync: expected sync channel, got %s", channel)
+		}
+		orderNo, _ := dataMap["order_no"].(string)
+		if orderNo == "" {
+			t.Error("force sync: order_no should not be empty")
+		}
+		t.Logf("force sync OK: channel=%s, order_no=%s", channel, orderNo)
+	}
+}
+
 // TestWriteAsyncChannelFallback 测试异步通路 (令牌耗尽自动降级)
 func TestWriteAsyncChannelFallback(t *testing.T) {
 	env := setupFullTestEnv(t)
@@ -922,15 +964,15 @@ func setupBenchEnv(b *testing.B) *fullTestEnv {
 	router.GET("/api/v1/monitor/circuit-breaker", monHandler.CircuitBreakerState)
 
 	return &fullTestEnv{
-		Router:       router,
-		MultiCache:   multiCache,
-		CB:           cb,
-		RateLimiter:  rateLimiter,
-		DistLock:     distLock,
-		OrderSvc:     orderSvc,
-		ProfileSvc:   profileSvc,
-		HotKeys:      hotKeys,
-		Logger:       logger,
+		Router:      router,
+		MultiCache:  multiCache,
+		CB:          cb,
+		RateLimiter: rateLimiter,
+		DistLock:    distLock,
+		OrderSvc:    orderSvc,
+		ProfileSvc:  profileSvc,
+		HotKeys:     hotKeys,
+		Logger:      logger,
 	}
 }
 

@@ -1,5 +1,9 @@
 # ---- 构建阶段 ----
-FROM golang:1.22-alpine AS builder
+# Go 版本需与 go.mod 中的 go 指令一致
+FROM golang:1.25-alpine AS builder
+
+# 使用国内 Go 代理加速依赖下载
+ENV GOPROXY=https://goproxy.cn,https://proxy.golang.org,direct
 
 RUN apk add --no-cache git ca-certificates
 
@@ -19,7 +23,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
 # ---- 运行阶段 ----
 FROM alpine:3.19
 
-RUN apk add --no-cache ca-certificates tzdata && \
+RUN apk add --no-cache ca-certificates tzdata wget && \
     cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
     echo "Asia/Shanghai" > /etc/timezone
 

@@ -43,9 +43,13 @@
 
 ### 双通道分流
 ```
-写请求 → WriteRateLimiter.TryAcquire()
-           ├── true  → 同步写DB + 分布式锁防并发
-           └── false → Kafka异步 (<10ms) → Consumer限速 → DB
+写请求 → 熔断器检查
+          ├── OPEN    → 强制走异步降级
+          └── CLOSED  → WriteRateLimiter.TryAcquire()
+                         ├── true  → 同步写DB + 分布式锁防并发 + 延迟双删
+                         └── false → Kafka异步 (<10ms) → Consumer限速 → DB
+
+POST /api/v1/orders/sync → 强制同步: 绕过限流器/熔断器, 直接同步写DB + 锁
 ```
 
 ### 三级缓存防护矩阵
@@ -88,7 +92,7 @@ make perf-write
 | ## | 方法 | 路径 | 说明 | 存储 |
 |----|------|------|------|------|
 | 01 | POST | `/api/v1/orders` | 创建订单（双通道分流） | MySQL + Kafka |
-| 02 | POST | `/api/v1/orders/sync` | 创建订单（强制同步） | MySQL |
+| 02 | POST | `/api/v1/orders/sync` | 创建订单（强制同步，绕过限流/熔断） | MySQL |
 | 03 | GET | `/api/v1/orders/:orderNo` | 查询订单 | L1→L2→MySQL |
 | 04 | GET | `/api/v1/orders/search?q=` | 搜索订单 | Elasticsearch |
 | 05 | POST | `/api/v1/users/profile` | 创建/更新用户资料 | MongoDB |
@@ -210,6 +214,7 @@ kafka:
 | 测试项 | 验证能力 |
 |--------|---------|
 | `TestWriteRateLimitSyncAsyncSplit` | 令牌桶分流: 同步≤桶容量, 超限转异步 |
+| `TestWriteForceSync` | 强制同步写入: 绕过限流器/熔断器, 走完整同步流程 |
 | `TestWriteAsyncChannelFallback` | 令牌耗尽异步降级 |
 | `TestWriteCircuitBreakerFallback` | 熔断打开全量异步降级 |
 | `TestWriteCacheInvalidation` | 写后延迟双删 (500ms) |

@@ -10,9 +10,9 @@ import (
 type State int32
 
 const (
-	StateClosed    State = iota // 正常
-	StateOpen                   // 熔断
-	StateHalfOpen               // 半开
+	StateClosed   State = iota // 正常
+	StateOpen                  // 熔断
+	StateHalfOpen              // 半开
 )
 
 func (s State) String() string {
@@ -35,11 +35,11 @@ type CircuitBreaker struct {
 	state State
 
 	// 配置
-	maxRequests     int           // 半开状态允许通过的探测请求数
-	interval        time.Duration // 统计窗口
-	timeout         time.Duration // OPEN→HALF_OPEN 等待时间
-	failureRate     float64       // 失败率阈值
-	slowCallMs      int64         // 慢调用阈值
+	maxRequests int           // 半开状态允许通过的探测请求数
+	interval    time.Duration // 统计窗口
+	timeout     time.Duration // OPEN→HALF_OPEN 等待时间
+	failureRate float64       // 失败率阈值
+	slowCallMs  int64         // 慢调用阈值
 
 	// 滑动窗口统计 (atomic 操作)
 	successCount int64
@@ -150,19 +150,25 @@ func (cb *CircuitBreaker) RecordFailure() {
 
 // GetState 获取当前状态
 func (cb *CircuitBreaker) GetState() string {
+	cb.mu.RLock()
+	defer cb.mu.RUnlock()
 	return cb.state.String()
 }
 
 // Metrics 熔断器指标
 func (cb *CircuitBreaker) Metrics() map[string]interface{} {
+	cb.mu.RLock()
+	state := cb.state
+	cb.mu.RUnlock()
+
 	return map[string]interface{}{
-		"name":           cb.name,
-		"state":          cb.state.String(),
-		"success_count":  atomic.LoadInt64(&cb.successCount),
-		"failure_count":  atomic.LoadInt64(&cb.failureCount),
-		"slow_count":     atomic.LoadInt64(&cb.slowCount),
-		"total_count":    atomic.LoadInt64(&cb.totalCount),
-		"failure_rate":   cb.currentFailureRate(),
+		"name":          cb.name,
+		"state":         state.String(),
+		"success_count": atomic.LoadInt64(&cb.successCount),
+		"failure_count": atomic.LoadInt64(&cb.failureCount),
+		"slow_count":    atomic.LoadInt64(&cb.slowCount),
+		"total_count":   atomic.LoadInt64(&cb.totalCount),
+		"failure_rate":  cb.currentFailureRate(),
 	}
 }
 

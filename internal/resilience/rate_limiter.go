@@ -10,11 +10,11 @@ import (
 // WriteRateLimiter 写操作限流器 (令牌桶算法)
 // 读请求直通缓存, 写请求超阈值→转Kafka异步
 type WriteRateLimiter struct {
-	mu            sync.Mutex
-	capacity      int       // 桶容量
-	refillRate    int       // 每秒补充令牌数
-	tokens        float64   // 当前令牌数
-	lastRefill    time.Time
+	mu         sync.Mutex
+	capacity   int     // 桶容量
+	refillRate int     // 每秒补充令牌数
+	tokens     float64 // 当前令牌数
+	lastRefill time.Time
 }
 
 // NewWriteRateLimiter 创建写限流器

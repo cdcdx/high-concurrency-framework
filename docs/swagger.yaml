@@ -10,6 +10,18 @@ definitions:
       trace_id:
         type: string
     type: object
+  github_com_cdcdx_high-concurrency-framework_internal_model.CreateOrderRequest:
+    properties:
+      amount:
+        example: 299.99
+        type: number
+      user_id:
+        example: 10001
+        minimum: 1
+        type: integer
+    required:
+    - user_id
+    type: object
   github_com_cdcdx_high-concurrency-framework_internal_model.LoginRequest:
     properties:
       password:
@@ -328,7 +340,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.Order'
+          $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.CreateOrderRequest'
       produces:
       - application/json
       responses:
@@ -428,14 +440,14 @@ paths:
     post:
       consumes:
       - application/json
-      description: 强制同步写入MySQL，不走Kafka，立即可读
+      description: 强制同步写入MySQL，绕过限流器与熔断器降级，立即可读
       parameters:
       - description: 订单信息
         in: body
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.Order'
+          $ref: '#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.CreateOrderRequest'
       produces:
       - application/json
       responses:

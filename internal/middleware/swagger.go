@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	swaggerFiles "github.com/swaggo/files"
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 

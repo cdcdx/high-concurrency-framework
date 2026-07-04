@@ -347,7 +347,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.Order"
+                            "$ref": "#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.CreateOrderRequest"
                         }
                     }
                 ],
@@ -454,7 +454,7 @@ const docTemplate = `{
                         "Bearer": []
                     }
                 ],
-                "description": "强制同步写入MySQL，不走Kafka，立即可读",
+                "description": "强制同步写入MySQL，绕过限流器与熔断器降级，立即可读",
                 "consumes": [
                     "application/json"
                 ],
@@ -472,7 +472,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.Order"
+                            "$ref": "#/definitions/github_com_cdcdx_high-concurrency-framework_internal_model.CreateOrderRequest"
                         }
                     }
                 ],
@@ -759,6 +759,23 @@ const docTemplate = `{
                 },
                 "trace_id": {
                     "type": "string"
+                }
+            }
+        },
+        "github_com_cdcdx_high-concurrency-framework_internal_model.CreateOrderRequest": {
+            "type": "object",
+            "required": [
+                "user_id"
+            ],
+            "properties": {
+                "amount": {
+                    "type": "number",
+                    "example": 299.99
+                },
+                "user_id": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 10001
                 }
             }
         },

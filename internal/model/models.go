@@ -16,6 +16,12 @@ type Order struct {
 	UpdatedAt time.Time `json:"updated_at" bson:"updated_at"`
 }
 
+// CreateOrderRequest 创建订单请求体 (仅暴露用户可填字段)
+type CreateOrderRequest struct {
+	UserID uint64  `json:"user_id" validate:"required,min=1" example:"10001"`
+	Amount float64 `json:"amount" validate:"gt=0" example:"299.99"`
+}
+
 // UserProfile 用户资料模型 (MongoDB 持久化 + 缓存查询)
 type UserProfile struct {
 	ID        uint64    `json:"id" gorm:"primaryKey" bson:"id,omitempty"`
@@ -63,15 +69,15 @@ type BusinessEvent struct {
 
 // User 用户认证模型 (MySQL 持久化)
 type User struct {
-	ID           uint64    `json:"id"`
-	Username     string    `json:"username"`
-	PasswordHash string    `json:"-"` // 永远不在 JSON 中暴露
-	Email        string    `json:"email,omitempty"`
-	Phone        string    `json:"phone,omitempty"`
-	Status       int       `json:"status"` // 1=正常 0=禁用
-	LastLoginAt  *string   `json:"last_login_at,omitempty"`
-	CreatedAt    string    `json:"created_at"`
-	UpdatedAt    string    `json:"updated_at"`
+	ID           uint64  `json:"id"`
+	Username     string  `json:"username"`
+	PasswordHash string  `json:"-"` // 永远不在 JSON 中暴露
+	Email        string  `json:"email,omitempty"`
+	Phone        string  `json:"phone,omitempty"`
+	Status       int     `json:"status"` // 1=正常 0=禁用
+	LastLoginAt  *string `json:"last_login_at,omitempty"`
+	CreatedAt    string  `json:"created_at"`
+	UpdatedAt    string  `json:"updated_at"`
 }
 
 // RegisterRequest 注册请求
@@ -96,4 +102,3 @@ type TokenResponse struct {
 	UserID      uint64 `json:"user_id"`
 	Username    string `json:"username"`
 }
-

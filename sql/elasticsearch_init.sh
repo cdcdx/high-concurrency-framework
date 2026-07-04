@@ -77,7 +77,7 @@ curl -s -o /dev/null -w "%{http_code}" $AUTH_FLAG -X PUT "$ES_URL/users_search" 
         "created_at": { "type": "date" }
       }
     }
-    
+  }'
 echo "  users_search created"
 
 # # 插入测试数据

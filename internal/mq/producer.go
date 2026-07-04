@@ -42,13 +42,13 @@ func NewEventProducer(brokers []string, topic string, maxRetries int, logger *za
 		return &kafka.Writer{
 			Addr:         kafka.TCP(brokers...),
 			Topic:        topic,
-			Balancer:     &kafka.LeastBytes{},     // 负载均衡: 最少字节
-			BatchSize:    16384,                    // 16KB 微批
-			BatchTimeout: 5 * time.Millisecond,     // 5ms 聚合延迟
-			Compression:  kafka.Lz4,                // LZ4 压缩
-			RequiredAcks: kafka.RequireAll,        // acks=all
-			MaxAttempts:  maxRetries,               // 重试次数
-			Async:        false,                    // 同步发送确保可靠性
+			Balancer:     &kafka.LeastBytes{},  // 负载均衡: 最少字节
+			BatchSize:    16384,                // 16KB 微批
+			BatchTimeout: 5 * time.Millisecond, // 5ms 聚合延迟
+			Compression:  kafka.Lz4,            // LZ4 压缩
+			RequiredAcks: kafka.RequireAll,     // acks=all
+			MaxAttempts:  maxRetries,           // 重试次数
+			Async:        false,                // 同步发送确保可靠性
 		}
 	}
 

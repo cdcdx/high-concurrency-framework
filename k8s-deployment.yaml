@@ -47,7 +47,7 @@ spec:
             memory: "2Gi"
         env:
         - name: GOMEMLIMIT
-          value: "1.8GiB"
+          value: "1800MiB"
         - name: GOMAXPROCS
           value: "2"
         # K8s 健康探针

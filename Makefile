@@ -1,4 +1,4 @@
-.PHONY: build run test lint clean docker-build docker-push deploy
+.PHONY: build run test lint clean docker-build docker-push deploy perf-auth perf-write perf-read
 
 # 变量
 BINARY_NAME=server
@@ -56,15 +56,41 @@ deploy:
 scale-up:
 	kubectl scale deployment server --replicas=10
 
-# 压测 (需要ab或wrk)
-perf-write:
+# 压测 (需要ab或wrk, jq)
+# TOKEN_FILE 用于跨 target 共享 token
+TOKEN_FILE := /tmp/bench_token_$(PORT).txt
+
+# 获取认证Token (先登录，失败则注册后再登录)
+perf-auth:
+	@echo "=== Obtaining auth token ==="
+	@TOKEN=$$(curl -s -X POST http://localhost:$(PORT)/api/v1/auth/login \
+		-H 'Content-Type: application/json' \
+		-d '{"username":"testuser","password":"123456"}' | jq -r '.data.access_token'); \
+	if [ "$$TOKEN" = "null" ] || [ -z "$$TOKEN" ]; then \
+		echo "Login failed, trying register..."; \
+		curl -s -X POST http://localhost:$(PORT)/api/v1/auth/register \
+			-H 'Content-Type: application/json' \
+			-d '{"username":"testuser","password":"123456","email":"test@example.com"}' > /dev/null; \
+		TOKEN=$$(curl -s -X POST http://localhost:$(PORT)/api/v1/auth/login \
+			-H 'Content-Type: application/json' \
+			-d '{"username":"testuser","password":"123456"}' | jq -r '.data.access_token'); \
+	fi; \
+	echo "$$TOKEN" > $(TOKEN_FILE); \
+	echo "Token: $${TOKEN:0:20}..."
+
+perf-write: perf-auth
 	@echo "=== Write API Benchmark ==="
+	@TOKEN=$$(cat $(TOKEN_FILE)); \
 	ab -n 100000 -c 1000 -p tests/order.json -T application/json \
+		-H "Authorization: Bearer $$TOKEN" \
 		http://localhost:$(PORT)/api/v1/orders
 
-perf-read:
+perf-read: perf-auth
 	@echo "=== Read API Benchmark ==="
-	ab -n 100000 -c 1000 http://localhost:$(PORT)/api/v1/users/10001/profile
+	@TOKEN=$$(cat $(TOKEN_FILE)); \
+	ab -n 100000 -c 1000 \
+		-H "Authorization: Bearer $$TOKEN" \
+		http://localhost:$(PORT)/api/v1/users/10001/profile
 
 # 安装依赖
 deps:

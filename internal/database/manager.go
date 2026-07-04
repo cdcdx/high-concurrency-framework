@@ -21,9 +21,9 @@ import (
 //	MongoDB    → 非结构化数据 (用户资料/行为日志), 支持 ReadPreference
 //	ES         → 全文搜索与聚合分析
 type Manager struct {
-	MySQL       *RWDB             // 读写分离: 写→Master, 读→Replica
-	Postgres    *RWDB             // 读写分离: 写→Master, 读→Replica
-	MongoDB     *mongo.Database   // ReadPreference 控制读写分离
+	MySQL       *RWDB           // 读写分离: 写→Master, 读→Replica
+	Postgres    *RWDB           // 读写分离: 写→Master, 读→Replica
+	MongoDB     *mongo.Database // ReadPreference 控制读写分离
 	MongoClient *mongo.Client
 	Logger      *zap.SugaredLogger
 	mu          sync.RWMutex

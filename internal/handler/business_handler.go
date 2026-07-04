@@ -48,38 +48,39 @@ func NewBusinessHandler(
 // @Tags         订单
 // @Accept       json
 // @Produce      json
-// @Param        body  body      model.Order  true  "订单信息"
+// @Param        body  body      model.CreateOrderRequest  true  "订单信息"
 // @Success      200   {object}  model.ApiResponse{data=object{order_no=string,channel=string}}
 // @Failure      400   {object}  model.ApiResponse
 // @Failure      500   {object}  model.ApiResponse
 // @Security     Bearer
 // @Router       /api/v1/orders [post]
 func (h *BusinessHandler) CreateOrder(c *gin.Context) {
-	h.handleCreateOrder(c, "order accepted")
+	h.handleCreateOrder(c, "order accepted", false)
 }
 
 // CreateOrderSync POST /api/v1/orders/sync
 // @Summary      创建订单 (同步)
-// @Description  强制同步写入MySQL，不走Kafka，立即可读
+// @Description  强制同步写入MySQL，绕过限流器与熔断器降级，立即可读
 // @Tags         订单
 // @Accept       json
 // @Produce      json
-// @Param        body  body      model.Order  true  "订单信息"
+// @Param        body  body      model.CreateOrderRequest  true  "订单信息"
 // @Success      200   {object}  model.ApiResponse{data=object{order_no=string,channel=string}}
 // @Failure      400   {object}  model.ApiResponse
 // @Failure      500   {object}  model.ApiResponse
 // @Security     Bearer
 // @Router       /api/v1/orders/sync [post]
 func (h *BusinessHandler) CreateOrderSync(c *gin.Context) {
-	h.handleCreateOrder(c, "order created")
+	h.handleCreateOrder(c, "order created", true)
 }
 
 // handleCreateOrder 统一处理订单创建 (消除重复代码)
-func (h *BusinessHandler) handleCreateOrder(c *gin.Context, successMsg string) {
+// forceSync: true=强制同步(绕过限流器/熔断器), false=双通道分流
+func (h *BusinessHandler) handleCreateOrder(c *gin.Context, successMsg string, forceSync bool) {
 	traceID := middleware.GetTraceID(c)
 
-	var order model.Order
-	if err := c.ShouldBindJSON(&order); err != nil {
+	var req model.CreateOrderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, model.ApiResponse{
 			Code:    400,
 			Message: "invalid request body: " + err.Error(),
@@ -89,7 +90,7 @@ func (h *BusinessHandler) handleCreateOrder(c *gin.Context, successMsg string) {
 	}
 
 	// 参数校验
-	if err := validate.Struct(&order); err != nil {
+	if err := validate.Struct(&req); err != nil {
 		c.JSON(http.StatusBadRequest, model.ApiResponse{
 			Code:    400,
 			Message: "validation failed: " + err.Error(),
@@ -98,11 +99,27 @@ func (h *BusinessHandler) handleCreateOrder(c *gin.Context, successMsg string) {
 		return
 	}
 
-	channel, orderNo, err := h.orderSvc.CreateOrder(c.Request.Context(), &order)
+	// 转换为内部 Order 模型（仅用户可填字段，其余由 service 层生成）
+	order := model.Order{
+		UserID: req.UserID,
+		Amount: req.Amount,
+	}
+
+	var channel string
+	var orderNo string
+	var err error
+
+	if forceSync {
+		channel, orderNo, err = h.orderSvc.CreateOrderForceSync(c.Request.Context(), &order)
+	} else {
+		channel, orderNo, err = h.orderSvc.CreateOrder(c.Request.Context(), &order)
+	}
+
 	if err != nil {
 		h.logger.Errorw("create order failed",
 			"traceId", traceID,
 			"user_id", order.UserID,
+			"force_sync", forceSync,
 			"err", err,
 		)
 		c.JSON(http.StatusInternalServerError, model.ApiResponse{

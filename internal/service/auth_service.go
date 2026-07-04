@@ -16,20 +16,20 @@ import (
 
 // 通用错误
 var (
-	ErrUserExists       = errors.New("username already exists")
-	ErrEmailExists      = errors.New("email already exists")
-	ErrInvalidLogin     = errors.New("invalid username or password")
-	ErrUserDisabled     = errors.New("user account is disabled")
-	ErrUserNotFound     = errors.New("user not found")
-	ErrInvalidToken     = errors.New("invalid or expired token")
+	ErrUserExists   = errors.New("username already exists")
+	ErrEmailExists  = errors.New("email already exists")
+	ErrInvalidLogin = errors.New("invalid username or password")
+	ErrUserDisabled = errors.New("user account is disabled")
+	ErrUserNotFound = errors.New("user not found")
+	ErrInvalidToken = errors.New("invalid or expired token")
 )
 
 // AuthService 用户认证服务
 type AuthService struct {
-	repo       *database.UserAuthRepo
-	jwtSecret  []byte
-	jwtExpire  time.Duration
-	logger     *zap.SugaredLogger
+	repo      *database.UserAuthRepo
+	jwtSecret []byte
+	jwtExpire time.Duration
+	logger    *zap.SugaredLogger
 }
 
 // NewAuthService 创建认证服务

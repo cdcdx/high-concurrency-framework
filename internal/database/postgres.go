@@ -113,6 +113,13 @@ func (r *AnalyticsRepo) GetBehaviorSummary(ctx context.Context, eventType string
 	return result, rows.Err()
 }
 
+// behaviorEntry 行为日志条目 (供批量写入)
+type BehaviorEntry struct {
+	UserID    uint64
+	EventType string
+	EventData string
+}
+
 // LogBehavior 写入用户行为日志 → 写 Master
 func (r *AnalyticsRepo) LogBehavior(ctx context.Context, userID uint64, eventType, eventData string) error {
 	if r.db == nil || r.db.IsNil() {
@@ -125,4 +132,42 @@ func (r *AnalyticsRepo) LogBehavior(ctx context.Context, userID uint64, eventTyp
 		userID, eventType, eventData,
 	)
 	return err
+}
+
+// LogBehaviorBatch 批量写入用户行为日志 (单次 INSERT 多行，减少 PG 往返)
+func (r *AnalyticsRepo) LogBehaviorBatch(ctx context.Context, entries []BehaviorEntry) error {
+	if r.db == nil || r.db.IsNil() || len(entries) == 0 {
+		return nil
+	}
+
+	// 构造多行 VALUES: ($1,$2,$3,NOW()),($4,$5,$6,NOW()),...
+	// PostgreSQL 参数上限约 65535，每条 3 个参数 + 1 (NOW())
+	// 安全分批: 每批最多 200 条 (已由调用方保证)
+	values := make([]string, 0, len(entries))
+	args := make([]interface{}, 0, len(entries)*3)
+	placeholderIdx := 1
+
+	for _, e := range entries {
+		values = append(values, fmt.Sprintf("($%d,$%d,$%d::jsonb,NOW())",
+			placeholderIdx, placeholderIdx+1, placeholderIdx+2))
+		args = append(args, e.UserID, e.EventType, e.EventData)
+		placeholderIdx += 3
+	}
+
+	query := fmt.Sprintf(`INSERT INTO user_behavior_log (user_id, event_type, event_data, created_at) VALUES %s`,
+		joinStrings(values, ","))
+
+	_, err := r.db.ExecContext(ctx, query, args...)
+	return err
+}
+
+func joinStrings(strs []string, sep string) string {
+	if len(strs) == 0 {
+		return ""
+	}
+	result := strs[0]
+	for i := 1; i < len(strs); i++ {
+		result += sep + strs[i]
+	}
+	return result
 }

@@ -83,8 +83,9 @@ kafka:
     topic: "order-create"
     dlq_topic: "order-create.dlq"  # 死信队列
     max_retries: 3
-    rate_limit: 2000               # 每秒消费速率
+    rate_limit: 2000               # 每秒消费速率 (大于此速率的写入会被Kafka削峰填谷)
     concurrency: 8                 # 并行消费协程数
+    start_from_latest: false       # false=消费全部积压 (削峰填谷), true=跳过历史从最新开始
     min_bytes: 1024
     max_bytes: 10485760            # 10MB
 

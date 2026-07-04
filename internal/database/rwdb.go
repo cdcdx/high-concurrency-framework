@@ -75,15 +75,13 @@ func (rw *RWDB) QueryContext(ctx context.Context, query string, args ...interfac
 
 // QueryRowContext 读操作 → Replica
 // 前置条件: 调用方必须在调用前通过 IsNil() 检查数据库可用性
-// 当 master 和所有 replica 均不可用时，返回 nil 上的 Row，Scan 时会 panic
 func (rw *RWDB) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
 	r := rw.replica()
 	if r != nil {
 		return r.QueryRowContext(ctx, query, args...)
 	}
-	// r == nil 意味着 master 也是 nil（replica() 回退逻辑保证）
-	// 调用方违反前置条件时此处必然 panic，使用 rw.master 保持一致语义
-	return rw.master.QueryRowContext(ctx, query, args...)
+	// 所有 DB 均不可用，防御性返回 nil
+	return nil
 }
 
 // PingContext 健康检查 → Master

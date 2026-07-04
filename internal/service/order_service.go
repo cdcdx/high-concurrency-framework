@@ -2,9 +2,12 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/cdcdx/high-concurrency-framework/internal/cache"
@@ -32,7 +35,7 @@ type OrderService struct {
 	esSemaphore  chan struct{} // 限制并发 ES 索引 goroutine 数量
 }
 
-const esMaxConcurrency = 50 // ES 索引并发 goroutine 上限
+const esMaxConcurrency = 100 // ES 索引并发 goroutine 上限
 
 // NewOrderService 创建订单服务
 func NewOrderService(
@@ -86,9 +89,65 @@ func (s *OrderService) CreateOrder(ctx context.Context, order *model.Order) (str
 	return s.createAsync(ctx, order) // 通道B: 异步
 }
 
-// createSync 通道A: 同步写入 (带分布式锁防并发冲突)
+// CreateOrderForceSync 强制同步写入 (绕过限流器和熔断器)
+// 适用于 POST /api/v1/orders/sync, 立即可读
+func (s *OrderService) CreateOrderForceSync(ctx context.Context, order *model.Order) (string, string, error) {
+	order.OrderNo = generateOrderNo(order.UserID)
+	order.Status = "pending"
+	order.CreatedAt = time.Now()
+	order.UpdatedAt = order.CreatedAt
+
+	// lockKey := fmt.Sprintf("order:create:%s", order.UserID) // 带分布式锁防并发冲突
+	lockKey := fmt.Sprintf("order:create:%s", order.OrderNo) // 分布式锁按订单号粒度 (每个订单独立，不按用户串行化)
+
+	start := time.Now()
+
+	locked := false
+	if s.lock != nil {
+		token, err := s.lock.Lock(ctx, lockKey, 5*time.Second, 200*time.Millisecond)
+		if err == nil {
+			locked = true
+			defer s.lock.Unlock(ctx, lockKey, token)
+		}
+	} else {
+		locked = true // 无Redis时跳过分布式锁
+	}
+
+	if !locked {
+		// return "sync", order.OrderNo, fmt.Errorf("distributed lock failed for user %s", order.UserID)
+		return "sync", order.OrderNo, fmt.Errorf("distributed lock failed for order %s", order.OrderNo)
+	}
+
+	// 强制同步写入DB (绕过限流器和熔断器, 不走异步降级)
+	writeErr := s.dbWrite(ctx, order)
+
+	elapsed := time.Since(start)
+	if writeErr != nil {
+		s.cb.RecordFailure()
+		s.logger.Errorw("force sync write failed", "order_no", order.OrderNo, "err", writeErr)
+		return "sync", order.OrderNo, writeErr
+	}
+
+	s.cb.RecordSuccess(elapsed)
+
+	// 延迟双删: 写入后失效缓存
+	s.cache.InvalidateWithDelay(ctx, fmt.Sprintf("order:%s", order.OrderNo), 500)
+
+	// 异步发布事件到 Kafka (不阻塞同步路径)
+	s.publishOrderEvent(ctx, order)
+
+	s.logger.Infow("order created (force sync)",
+		"order_no", order.OrderNo,
+		"user_id", order.UserID,
+		"cost_ms", elapsed.Milliseconds(),
+	)
+	return "sync", order.OrderNo, nil
+}
+
+// createSync 通道A: 同步写入 (分布式锁按订单号粒度，防重复创建)
 func (s *OrderService) createSync(ctx context.Context, order *model.Order) (string, string, error) {
-	lockKey := fmt.Sprintf("order:create:%d", order.UserID)
+	// lockKey := fmt.Sprintf("order:create:%s", order.UserID) // 带分布式锁防并发冲突
+	lockKey := fmt.Sprintf("order:create:%s", order.OrderNo) // 分布式锁按订单号粒度，防重复创建
 
 	start := time.Now()
 	var writeErr error
@@ -330,8 +389,28 @@ func (s *OrderService) dbQuery(ctx context.Context, orderNo string) (*model.Orde
 	return &order, nil
 }
 
+// 全局原子计数器 + 随机种子，保证高并发下订单号唯一
+var (
+	orderSeq    uint64
+	orderRandID [8]byte
+)
+
+func init() {
+	// 初始化随机种子 (不依赖时间，避免并发碰撞)
+	if _, err := rand.Read(orderRandID[:]); err != nil {
+		// fallback: 用纳秒时间戳 + 进程伪随机
+		binary.BigEndian.PutUint64(orderRandID[:], uint64(time.Now().UnixNano()))
+	}
+	orderSeq = uint64(time.Now().UnixNano()) & 0xFFFF
+}
+
+// generateOrderNo 生成全局唯一订单号
+// 格式: ORD{userID}{seq(5位)}{rand(3位)}，共 ~20 字符
+// seq 原子递增保证同进程不重复，rand 保证多进程不重复
 func generateOrderNo(userID uint64) string {
-	return fmt.Sprintf("ORD%d%03d", userID, time.Now().UnixNano()%1000)
+	seq := atomic.AddUint64(&orderSeq, 1) % 100000
+	randPart := binary.BigEndian.Uint64(orderRandID[:]) % 1000
+	return fmt.Sprintf("ORD%d%05d%03d", userID, seq, randPart)
 }
 
 // publishOrderEvent 异步发送订单事件到 Kafka (不阻塞主流程)

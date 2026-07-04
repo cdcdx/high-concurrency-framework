@@ -26,12 +26,13 @@ type EventConsumer struct {
 	maxRetries  int
 	rateLimiter *rate.Limiter
 
-	concurrency int           // 记录 worker 数量（用于优雅停止）
+	concurrency int // 记录 worker 数量（用于优雅停止）
 	stopCh      chan struct{}
 	doneCh      chan struct{}
 }
 
 // NewEventConsumer 创建事件消费者
+// startFromLatest: true=从最新开始(跳过积压), false=从最早开始(消费全部积压, 削峰填谷)
 func NewEventConsumer(
 	brokers []string,
 	topic, groupID string,
@@ -41,7 +42,12 @@ func NewEventConsumer(
 	handler MessageHandler,
 	dlqProducer *EventProducer,
 	logger *zap.SugaredLogger,
+	startFromLatest bool,
 ) *EventConsumer {
+	startOffset := kafka.FirstOffset
+	if startFromLatest {
+		startOffset = kafka.LastOffset
+	}
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:        brokers,
 		Topic:          topic,
@@ -50,7 +56,7 @@ func NewEventConsumer(
 		MaxBytes:       10 * 1024 * 1024, // 最大10MB
 		MaxWait:        100 * time.Millisecond,
 		CommitInterval: 0, // 手动提交
-		StartOffset:    kafka.LastOffset,
+		StartOffset:    startOffset,
 		MaxAttempts:    1, // 自行控制重试
 	})
 
