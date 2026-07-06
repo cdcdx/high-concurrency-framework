@@ -19,7 +19,7 @@ func SwaggerWithRuntimeDefaults() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
 
-		// 只对 swagger.json (即 /docs/doc.json) 做替换
+		// 只对 swagger.json (即 /swagger/doc.json) 做替换
 		if strings.HasSuffix(path, "doc.json") ||
 			strings.HasSuffix(path, "swagger.json") {
 

@@ -44,7 +44,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 
-	_ "github.com/cdcdx/high-concurrency-framework/docs" // swagger 生成的文档包
+	_ "github.com/cdcdx/high-concurrency-framework/swagger" // swagger 生成的文档包
 )
 
 func main() {
@@ -350,8 +350,8 @@ func main() {
 	// Swagger 在线文档 (通过配置控制, 生产环境建议关闭)
 	// 日期占位符 __7DAYS_AGO__/__TODAY__ 在运行时根据当前时间自动计算
 	if cfg.Swagger.Enabled {
-		router.GET("/docs/*any", middleware.SwaggerWithRuntimeDefaults())
-		logger.Infow("swagger docs enabled", "url", fmt.Sprintf("http://localhost:%d/docs/index.html", cfg.Server.Port))
+		router.GET("/swagger/*any", middleware.SwaggerWithRuntimeDefaults())
+		logger.Infow("swagger html enabled", "url", fmt.Sprintf("http://localhost:%d/swagger/index.html", cfg.Server.Port))
 	}
 
 	// 标记启动完成

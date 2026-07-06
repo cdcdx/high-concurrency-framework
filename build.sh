@@ -128,7 +128,7 @@ cmd_build() {
     # Swagger 文档 (可选)
     if command -v swag &>/dev/null; then
         log_info "生成 Swagger 文档..."
-        swag init -g cmd/server/main.go -o docs/ --parseDependency --parseInternal 2>&1 | grep -vE "warning: (failed to get package name|failed to evaluate const)" || true
+        swag init -g cmd/server/main.go -o swagger/ --parseDependency --parseInternal 2>&1 | grep -vE "warning: (failed to get package name|failed to evaluate const)" || true
         log_ok "Swagger 文档已更新"
     else
         log_warn "swag 未安装, 跳过文档生成 (install: go install github.com/swaggo/swag/cmd/swag@latest)"
@@ -174,8 +174,8 @@ cmd_deps() {
 cmd_swagger() {
     require_cmd swag
     log_info "生成 Swagger 文档..."
-    swag init -g cmd/server/main.go -o docs/ --parseDependency --parseInternal 2>&1 | grep -vE "warning: (failed to get package name|failed to evaluate const)" || true
-    log_ok "Swagger 文档已生成: docs/"
+    swag init -g cmd/server/main.go -o swagger/ --parseDependency --parseInternal 2>&1 | grep -vE "warning: (failed to get package name|failed to evaluate const)" || true
+    log_ok "Swagger 文档已生成: swagger/"
 }
 
 # ── 入口 ──
