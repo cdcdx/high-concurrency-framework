@@ -102,21 +102,20 @@ func (s *OrderService) CreateOrderForceSync(ctx context.Context, order *model.Or
 
 	start := time.Now()
 
-	locked := false
+	// 分布式锁: 防重复创建, 锁失败时降级为直接写DB (DB层已有 ON DUPLICATE KEY UPDATE 幂等)
 	if s.lock != nil {
 		token, err := s.lock.Lock(ctx, lockKey, 5*time.Second, 200*time.Millisecond)
 		if err == nil {
-			locked = true
 			defer s.lock.Unlock(ctx, lockKey, token)
+		} else {
+			s.logger.Warnw("distributed lock unavailable, proceeding without lock",
+				"order_no", order.OrderNo,
+				"lock_key", lockKey,
+				"err", err,
+			)
 		}
-	} else {
-		locked = true // 无Redis时跳过分布式锁
 	}
-
-	if !locked {
-		// return "sync", order.OrderNo, fmt.Errorf("distributed lock failed for user %s", order.UserID)
-		return "sync", order.OrderNo, fmt.Errorf("distributed lock failed for order %s", order.OrderNo)
-	}
+	// 无锁时也继续写入 (DB ON DUPLICATE KEY UPDATE 提供幂等性保障)
 
 	// 强制同步写入DB (绕过限流器和熔断器, 不走异步降级)
 	writeErr := s.dbWrite(ctx, order)

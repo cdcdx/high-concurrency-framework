@@ -65,9 +65,12 @@ func main() {
 
 	// --- 3. 初始化Redis (L2分布式缓存 + 分布式锁) ---
 	redisClient := redis.NewClient(&redis.Options{
-		Addr:     cfg.Cache.L2.Addresses[0], // Cluster暂用第一个节点
-		Password: cfg.Cache.L2.Password,
-		PoolSize: cfg.Cache.L2.PoolSize,
+		Addr:         cfg.Cache.L2.Addresses[0], // Cluster暂用第一个节点
+		Password:     cfg.Cache.L2.Password,
+		PoolSize:     cfg.Cache.L2.PoolSize,
+		MinIdleConns: cfg.Cache.L2.MinIdle,
+		DialTimeout:  time.Duration(cfg.Cache.L2.DialTimeoutMs) * time.Millisecond,
+		ReadTimeout:  time.Duration(cfg.Cache.L2.ReadTimeoutMs) * time.Millisecond,
 	})
 	defer redisClient.Close()
 

@@ -2,16 +2,6 @@
 # API 测试脚本 (含 JWT 认证)
 BASE="http://127.0.0.1:8080"
 
-
-ab -n 10000 -c 100 -k -r -s 30 \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3ODMxMzcyNzEsImlhdCI6MTc4MzEzMDA3MSwidXNlcl9pZCI6MSwidXNlcm5hbWUiOiJwYW5ndG91In0.UgfBAPTq5Qs1Yd5hkh5-gOy_4DgyG12B2bJ0p8rLsOQ" \
-  http://localhost:8080/api/v1/users/10001/profile
-
-ab -n 10000 -c 100 -k -r -s 30 \
-  -p tests/order.json -T application/json \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3ODMxMzcyNzEsImlhdCI6MTc4MzEzMDA3MSwidXNlcl9pZCI6MSwidXNlcm5hbWUiOiJwYW5ndG91In0.UgfBAPTq5Qs1Yd5hkh5-gOy_4DgyG12B2bJ0p8rLsOQ" \
-  http://localhost:8080/api/v1/orders/sync
-
 # ---------------------------------------------------------- 认证 (先注册+登录获取Token)
 echo "=== 1. 注册用户 ==="
 curl -s -X POST "$BASE/api/v1/auth/register" \
@@ -96,32 +86,3 @@ curl -s "http://127.0.0.1:8080/health/liveness" | jq .
 curl -s "http://127.0.0.1:8080/health/readiness" | jq .
 curl -s "http://127.0.0.1:8080/health/startup" | jq .
 # ----------------------------------------------------------
-
-docker exec mongodb mongosh --quiet --eval '
-use demo;
-db.createUser({
-  user: "demo",
-  pwd: "123456",
-  roles: [{ role: "readWrite", db: "demo" }]
-});
-print("---");
-use demo;
-db.getUsers();
-' 2>&1
-
-# 创建 admin 用户
-docker exec mongodb mongosh "mongodb://127.0.0.1:27017/admin" --quiet --eval '
-  db.createUser({
-    user: "demo",
-    pwd: "123456",
-    roles: [{ role: "readWrite", db: "demo" }]
-  })
-'
-
-docker run -d --name kafka-map -p 8888:8080 \
-    --restart always \
-    --network 1panel-network \
-    -e DEFAULT_USERNAME=webx \
-    -e DEFAULT_PASSWORD=webx123 \
-    -v /opt/data/kafka-map:/usr/local/kafka-map/data \
-    -d dushixiang/kafka-map:latest
