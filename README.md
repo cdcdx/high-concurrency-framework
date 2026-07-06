@@ -27,11 +27,12 @@
 | 能力 | Java 版 | Go 版 |
 |------|---------|-------|
 | HTTP 框架 | Spring Boot Web | Gin |
+| JWT 认证 | Spring Security | golang-jwt (自研) |
 | L1 本地缓存 | Caffeine | Ristretto |
 | L2 分布式缓存 | Redis Cluster (Lettuce) | Redis (go-redis) |
 | L3 数据库 | JPA + HikariCP | database/sql |
 | 消息队列 | Spring Kafka | segmentio/kafka-go |
-| 熔断器 | Resilience4j | sony/gobreaker (自研) |
+| 熔断器 | Resilience4j | 自研 (三态模型) |
 | 限流器 | Resilience4j RateLimiter | 令牌桶 (自研) |
 | 分布式锁 | Redisson | Redis SETNX (自研) |
 | 参数校验 | @Valid + Hibernate Validator | go-playground/validator |
@@ -89,23 +90,26 @@ make perf-write
 
 ## 接口列表
 
-| ## | 方法 | 路径 | 说明 | 存储 |
-|----|------|------|------|------|
-| 01 | POST | `/api/v1/orders` | 创建订单（双通道分流） | MySQL + Kafka |
-| 02 | POST | `/api/v1/orders/sync` | 创建订单（强制同步，绕过限流/熔断） | MySQL |
-| 03 | GET | `/api/v1/orders/:orderNo` | 查询订单 | L1→L2→MySQL |
-| 04 | GET | `/api/v1/orders/search?q=` | 搜索订单 | Elasticsearch |
-| 05 | POST | `/api/v1/users/profile` | 创建/更新用户资料 | MongoDB |
-| 06 | GET | `/api/v1/users/:userID/profile` | 获取用户资料 | L1→L2→MongoDB |
-| 07 | GET | `/api/v1/users/search?q=` | 搜索用户 | Elasticsearch |
-| 08 | GET | `/api/v1/analytics/daily?from=&to=` | 日度订单统计 | PostgreSQL |
-| 09 | GET | `/api/v1/analytics/behaviors?type=` | 行为事件汇总 | PostgreSQL |
-| 10 | GET | `/api/v1/monitor/metrics` | 系统运行指标 | 内存 |
-| 11 | GET | `/api/v1/monitor/circuit-breaker` | 熔断器状态 | 内存 |
-| 12 | GET | `/api/v1/monitor/cache-stats` | 缓存命中率统计 | 内存 |
-| 13 | GET | `/health/liveness` | K8s 探活 | — |
-| 14 | GET | `/health/readiness` | K8s 就绪 | Redis+Kafka+DB |
-| 15 | GET | `/health/startup` | K8s 启动 | 缓存预热 |
+| ## | 方法 | 路径 | 说明 | 存储 | 认证 |
+|----|------|------|------|------|------|
+| 01 | POST | `/api/v1/auth/register` | 用户注册（返回JWT） | MySQL | 无 |
+| 02 | POST | `/api/v1/auth/login` | 用户登录（返回JWT） | MySQL | 无 |
+| 03 | GET | `/api/v1/auth/me` | 获取当前用户信息 | MySQL | JWT |
+| 04 | POST | `/api/v1/orders` | 创建订单（双通道分流） | MySQL + Kafka | JWT |
+| 05 | POST | `/api/v1/orders/sync` | 创建订单（强制同步，绕过限流/熔断） | MySQL | JWT |
+| 06 | GET | `/api/v1/orders/:orderNo` | 查询订单 | L1→L2→MySQL | JWT |
+| 07 | GET | `/api/v1/orders/search?q=` | 搜索订单 | Elasticsearch | JWT |
+| 08 | POST | `/api/v1/users/profile` | 创建/更新用户资料 | MongoDB | JWT |
+| 09 | GET | `/api/v1/users/:userID/profile` | 获取用户资料 | L1→L2→MongoDB | JWT |
+| 10 | GET | `/api/v1/users/search?q=` | 搜索用户 | Elasticsearch | JWT |
+| 11 | GET | `/api/v1/analytics/daily?from=&to=` | 日度订单统计 | PostgreSQL | JWT |
+| 12 | GET | `/api/v1/analytics/behaviors?type=` | 行为事件汇总 | PostgreSQL | JWT |
+| 13 | GET | `/api/v1/monitor/metrics` | 系统运行指标 | 内存 | 无 |
+| 14 | GET | `/api/v1/monitor/circuit-breaker` | 熔断器状态 | 内存 | 无 |
+| 15 | GET | `/api/v1/monitor/cache-stats` | 缓存命中率统计 | 内存 | 无 |
+| 16 | GET | `/health/liveness` | K8s 探活 | — | 无 |
+| 17 | GET | `/health/readiness` | K8s 就绪 | Redis+Kafka+DB | 无 |
+| 18 | GET | `/health/startup` | K8s 启动 | 缓存预热 | 无 |
 
 ## 项目结构
 
@@ -132,17 +136,23 @@ high-concurrency-framework-go/
 │   │   ├── mongo.go                 # MongoDB用户资料仓库
 │   │   ├── postgres.go              # PostgreSQL分析仓库
 │   │   ├── elasticsearch.go         # ES全文搜索客户端
+│   │   ├── user_auth_repo.go        # 用户认证仓库(MySQL)
 │   │   └── schema.go                # 统一DDL初始化(sql/*)
 │   ├── service/
 │   │   ├── order_service.go         # 订单服务(读写分流+削峰)
 │   │   ├── user_profile_service.go  # 用户服务(纯读多级缓存)
-│   │   └── analytics_service.go     # 分析服务(PostgreSQL时序)
+│   │   ├── analytics_service.go     # 分析服务(PostgreSQL时序+批量写入)
+│   │   └── auth_service.go          # 认证服务(JWT签发/验证)
 │   ├── handler/
 │   │   ├── business_handler.go      # 业务API接口
+│   │   ├── auth_handler.go          # 认证API接口(注册/登录/用户信息)
 │   │   ├── monitor_handler.go       # 监控API接口
 │   │   └── analytics_handler.go     # 分析API接口
 │   ├── middleware/
 │   │   ├── traceid.go               # 全链路TraceID过滤器 + ZapLogger
+│   │   ├── auth.go                  # JWT认证中间件
+│   │   ├── cors.go                  # 跨域CORS中间件
+│   │   ├── swagger.go               # Swagger文档中间件
 │   │   ├── ratelimit.go             # 限流中间件(写操作)
 │   │   └── recovery.go              # Panic恢复+统一ErrorHandler
 │   ├── trace/trace.go               # Context trace_id 注入/提取

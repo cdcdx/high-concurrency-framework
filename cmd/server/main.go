@@ -382,6 +382,7 @@ func main() {
 	circuitBreaker.Stop()
 	hotKeyDetector.Stop()
 	multiLevelCache.Close()
+	analyticsService.Close()
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()

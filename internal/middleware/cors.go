@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -93,7 +94,7 @@ func CORS(cfg CORSConfig) gin.HandlerFunc {
 			c.Header("Access-Control-Allow-Methods", allowedMethods)
 			c.Header("Access-Control-Allow-Headers", allowedHeaders)
 			if cfg.MaxAge > 0 {
-				c.Header("Access-Control-Max-Age", "86400")
+				c.Header("Access-Control-Max-Age", strconv.Itoa(cfg.MaxAge))
 			}
 			c.AbortWithStatus(http.StatusNoContent)
 			return

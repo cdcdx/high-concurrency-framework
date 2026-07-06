@@ -2,13 +2,12 @@ package cache
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"sync/atomic"
 	"time"
 
+	"github.com/cdcdx/high-concurrency-framework/internal/config"
 	"github.com/dgraph-io/ristretto"
 	"github.com/go-redis/redis/v8"
 	"go.uber.org/zap"
@@ -323,12 +322,12 @@ func (mc *MultiLevelCache) Stats() map[string]interface{} {
 
 // l1TTL L1过期时间 (带防雪崩随机偏移，使用配置的基础 TTL)
 func (mc *MultiLevelCache) l1TTL() time.Duration {
-	return jitterDuration(mc.l1BaseTTL, mc.jitterPct)
+	return config.JitterDuration(mc.l1BaseTTL, mc.jitterPct)
 }
 
 // l2TTL L2过期时间 (带防雪崩随机偏移，使用配置的基础 TTL)
 func (mc *MultiLevelCache) l2TTL() time.Duration {
-	return jitterDuration(mc.l2BaseTTL, mc.jitterPct)
+	return config.JitterDuration(mc.l2BaseTTL, mc.jitterPct)
 }
 
 func (mc *MultiLevelCache) parseValue(val string) interface{} {
@@ -340,21 +339,8 @@ func (mc *MultiLevelCache) parseValue(val string) interface{} {
 	return result
 }
 
-// JitterDuration 在duration ± pct 范围内随机偏移 (公开, 供测试/配置使用)
-// 使用 crypto/rand 生成均匀分布的随机数
+// JitterDuration 在duration ± pct 范围内随机偏移（兼容包装，委托至 config 包实现）
+// 保留此接口供测试等外部调用方使用，避免破坏公共 API
 func JitterDuration(d time.Duration, pct float64) time.Duration {
-	if pct <= 0 {
-		return d
-	}
-	var b [8]byte
-	_, _ = rand.Read(b[:])
-	n := float64(binary.LittleEndian.Uint64(b[:])>>11) / (1 << 53)
-	delta := float64(d) * pct
-	result := float64(d) - delta + 2*delta*n
-	return time.Duration(result)
-}
-
-// jitterDuration 内部别名 (保持向后兼容)
-func jitterDuration(d time.Duration, pct float64) time.Duration {
-	return JitterDuration(d, pct)
+	return config.JitterDuration(d, pct)
 }

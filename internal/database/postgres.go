@@ -37,18 +37,6 @@ func NewAnalyticsRepo(db *RWDB) *AnalyticsRepo {
 	return &AnalyticsRepo{db: db}
 }
 
-// EnsureTables 确保分析表存在（已统一由 schema.EnsureAllSQLTables 管理）
-// Deprecated: 表结构请在 sql/postgresql_init.sql 中修改，启动时会自动执行
-func (r *AnalyticsRepo) EnsureTables(ctx context.Context) error {
-	return nil // no-op, handled by schema.EnsureAllSQLTables
-}
-
-// SeedTestData 插入测试数据（已统一由 sql/postgresql_init.sql 管理）
-// Deprecated: 种子数据请在 sql/postgresql_init.sql 中修改，启动时会自动执行
-func (r *AnalyticsRepo) SeedTestData(ctx context.Context) error {
-	return nil // no-op, handled by schema.EnsureAllSQLTables
-}
-
 // GetDailyStats 获取日度统计（按日期范围）→ 读 Replica
 func (r *AnalyticsRepo) GetDailyStats(ctx context.Context, from, to time.Time) ([]DailyOrderStats, error) {
 	if r.db == nil || r.db.IsNil() {

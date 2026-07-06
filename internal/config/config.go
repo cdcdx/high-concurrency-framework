@@ -273,14 +273,18 @@ func (c *CacheConfig) NullTTL() time.Duration {
 // jitterDuration 在 base * (1 ± pct) 范围内随机偏移
 // 使用 crypto/rand 确保均匀分布, 防止所有 Pod 同时过期 (缓存雪崩)
 func jitterDuration(base time.Duration, pct float64) time.Duration {
+	return JitterDuration(base, pct)
+}
+
+// JitterDuration 在 duration ± pct 范围内随机偏移（公开函数，供 cache/test 等包使用）
+// 使用 crypto/rand 生成 [0,1) 均匀分布的随机数，避免所有 Pod 同时过期导致缓存雪崩
+func JitterDuration(base time.Duration, pct float64) time.Duration {
 	if pct <= 0 {
 		return base
 	}
-	// 使用 crypto/rand 生成 [0,1) 均匀分布的随机数
 	var b [8]byte
 	_, _ = rand.Read(b[:])
 	n := float64(binary.LittleEndian.Uint64(b[:])>>11) / (1 << 53)
-	// 偏移范围: base * (1 - pct) → base * (1 + pct)
 	delta := float64(base) * pct
 	result := float64(base) - delta + 2*delta*n
 	return time.Duration(result)

@@ -59,9 +59,3 @@ func (r *UserProfileRepo) Upsert(ctx context.Context, profile *model.UserProfile
 	}
 	return nil
 }
-
-// EnsureIndexes 创建MongoDB索引（已统一由 schema.EnsureMongoCollections 管理）
-// Deprecated: 索引定义请在 sql/mongo_init.json 中修改，启动时会自动执行
-func (r *UserProfileRepo) EnsureIndexes(ctx context.Context) error {
-	return nil // no-op, handled by schema.EnsureMongoCollections
-}
